@@ -13,6 +13,7 @@ const ServerEnvSchema = z.object({
   ANTHROPIC_MODEL: z.string().min(1).default("claude-sonnet-5-5"),
   ML_SERVICE_URL: z.url(),
   ML_SHARED_SECRET: z.string().min(32),
+  ML_SERVICE_TOKEN: z.preprocess((v) => (v === "" ? undefined : v), z.string().min(8).optional()),
   APP_BASE_URL: z.url(),
   CRON_SECRET: z.string().min(16),
   MAX_USER_STORAGE_MB: z.coerce.number().int().positive().default(200),
@@ -29,6 +30,8 @@ export interface ServerEnv {
   readonly anthropicModel: string;
   readonly mlServiceUrl: string;
   readonly mlSharedSecret: string;
+  /** Hugging Face token for a private Space / per-account ZeroGPU quota; null when unset. */
+  readonly mlServiceToken: string | null;
   readonly appBaseUrl: string;
   readonly cronSecret: string;
   readonly maxUploadBytes: number;
@@ -56,6 +59,7 @@ export function getServerEnv(): ServerEnv {
     anthropicModel: e.ANTHROPIC_MODEL,
     mlServiceUrl: e.ML_SERVICE_URL.replace(/\/+$/, ""),
     mlSharedSecret: e.ML_SHARED_SECRET,
+    mlServiceToken: e.ML_SERVICE_TOKEN ?? null,
     appBaseUrl: e.APP_BASE_URL.replace(/\/+$/, ""),
     cronSecret: e.CRON_SECRET,
     maxUploadBytes: MAX_UPLOAD_BYTES,

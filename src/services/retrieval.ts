@@ -1,8 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
-import { getServerEnv } from "@/lib/env";
-import { buildSignedHeaders } from "@/lib/hmac";
+import { callMl } from "@/lib/mlClient";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import {
   EMBEDDING_DIMENSIONS,
@@ -25,22 +24,11 @@ export interface RetrievalResult {
  * payload so retrieval can degrade to keyword-only search instead of failing the request.
  */
 export async function embedQuery(text: string, timeoutMs = 6000): Promise<number[] | null> {
-  const env = getServerEnv();
   const body = JSON.stringify({ texts: [text.slice(0, 2000)] });
-  try {
-    const response = await fetch(`${env.mlServiceUrl}/embed`, {
-      method: "POST",
-      headers: buildSignedHeaders(env.mlSharedSecret, body),
-      body,
-      signal: AbortSignal.timeout(timeoutMs),
-      cache: "no-store",
-    });
-    if (!response.ok) return null;
-    const parsed = EmbedResponseSchema.safeParse(await response.json());
-    return parsed.success ? (parsed.data.embeddings[0] ?? null) : null;
-  } catch {
-    return null;
-  }
+  const result = await callMl("embed", body, { until: "complete", timeoutMs });
+  if (!result.ok) return null;
+  const parsed = EmbedResponseSchema.safeParse(result.output);
+  return parsed.success ? (parsed.data.embeddings[0] ?? null) : null;
 }
 
 export async function hybridSearch(

@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getServerEnv } from "@/lib/env";
-import { buildSignedHeaders } from "@/lib/hmac";
 import { isUuid, jsonError, jsonOk, logError, serviceErrorResponse } from "@/lib/http";
+import { callMl } from "@/lib/mlClient";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
 import { getStorageManager } from "@/services/storageManager";
@@ -21,7 +21,8 @@ const AcceptedSchema = z.object({ accepted: z.literal(true), bookId: z.uuid() })
 /**
  * POST /api/books/:id/ingest — called by the browser after the direct upload finishes.
  * Verifies the real object size, flips the book to `processing`, and hands a short-lived signed
- * download URL to the ML Space, which responds 202 and processes asynchronously.
+ * download URL to the ML Space. We wait only for the Space's "accepted" event; the job keeps
+ * running there and reports back via the signed ingestion-complete callback.
  */
 export async function POST(_request: Request, context: RouteContext): Promise<NextResponse<{ book: Book } | ApiError>> {
   const { id } = await context.params;
@@ -59,18 +60,12 @@ export async function POST(_request: Request, context: RouteContext): Promise<Ne
       callbackUrl: `${env.appBaseUrl}/api/books/${id}/ingestion-complete`,
     });
 
-    let accepted = false;
-    try {
-      const response = await fetch(`${env.mlServiceUrl}/ingest`, {
-        method: "POST",
-        headers: buildSignedHeaders(env.mlSharedSecret, payload),
-        body: payload,
-        signal: AbortSignal.timeout(45_000),
-        cache: "no-store",
+    const result = await callMl("ingest", payload, { until: "first", timeoutMs: 45_000 });
+    const accepted = result.ok && AcceptedSchema.safeParse(result.output).success;
+    if (!accepted) {
+      logError("books.ingest.dispatch", new Error(result.ok ? "unexpected ingest response" : result.reason), {
+        bookId: id,
       });
-      accepted = response.status === 202 && AcceptedSchema.safeParse(await response.json()).success;
-    } catch (err) {
-      logError("books.ingest.dispatch", err, { bookId: id });
     }
 
     if (!accepted) {
