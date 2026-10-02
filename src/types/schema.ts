@@ -379,6 +379,37 @@ export const FeynmanRequestSchema = z.object({
 });
 export type FeynmanRequest = z.infer<typeof FeynmanRequestSchema>;
 
+export const StudyConceptSchema = z.object({
+  id: z.uuid(),
+  title: z.string(),
+  description: z.string().nullable(),
+  bloomLevel: BloomLevelSchema.nullable(),
+  /** Ids of concepts that should be learned first. */
+  prerequisiteIds: z.array(z.uuid()),
+  cardCount: z.number().int().nonnegative(),
+});
+export type StudyConcept = z.infer<typeof StudyConceptSchema>;
+
+export const StudyCardSchema = z.object({
+  id: z.uuid(),
+  conceptId: z.uuid(),
+  front: z.string(),
+  back: z.string(),
+  state: FsrsStateSchema,
+  dueDate: z.string(),
+});
+export type StudyCard = z.infer<typeof StudyCardSchema>;
+
+/** GET /api/books/:id/study — concepts in learning order plus the cards due now. */
+export const StudyOverviewSchema = z.object({
+  book: BookSchema,
+  concepts: z.array(StudyConceptSchema),
+  dueCards: z.array(StudyCardSchema),
+  totalCards: z.number().int().nonnegative(),
+  nextDueDate: z.string().nullable(),
+});
+export type StudyOverview = z.infer<typeof StudyOverviewSchema>;
+
 export const ApiErrorSchema = z.object({
   error: z.object({
     code: z.string(),

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import AuthPanel from "@/components/AuthPanel";
 import LibraryPanel from "@/components/LibraryPanel";
 import StorageUsageModal from "@/components/StorageUsageModal";
+import StudyView from "@/components/StudyView";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 
 export default function DashboardShell() {
@@ -13,6 +14,7 @@ export default function DashboardShell() {
   // undefined = still checking, null = signed out
   const [session, setSession] = useState<Session | null | undefined>(undefined);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [studyBookId, setStudyBookId] = useState<string | null>(null);
   const close = useCallback(() => setOpen(false), []);
   const changed = useCallback(() => setRefreshCount((n) => n + 1), []);
 
@@ -63,7 +65,11 @@ export default function DashboardShell() {
         <AuthPanel initialError={authError} />
       ) : (
         <>
-          <LibraryPanel refreshKey={refreshCount} onChanged={changed} />
+          {studyBookId !== null ? (
+            <StudyView bookId={studyBookId} onBack={() => setStudyBookId(null)} />
+          ) : (
+            <LibraryPanel refreshKey={refreshCount} onChanged={changed} onOpen={(book) => setStudyBookId(book.id)} />
+          )}
           <StorageUsageModal open={open} onClose={close} onChanged={changed} />
         </>
       )}

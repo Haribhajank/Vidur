@@ -2,34 +2,15 @@
 
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import { z } from "zod";
+import { requestJson } from "@/lib/apiClient";
 import {
-  ApiErrorSchema,
   BookSchema,
   MAX_UPLOAD_BYTES,
-  safeJsonParse,
   StorageOverviewSchema,
   UploadUrlResponseSchema,
   type Book,
   type MimeType,
 } from "@/types/schema";
-
-type FetchResult<T> = { ok: true; data: T } | { ok: false; status: number; message: string };
-
-async function requestJson<T>(url: string, schema: z.ZodType<T>, init?: RequestInit): Promise<FetchResult<T>> {
-  let response: Response;
-  try {
-    response = await fetch(url, { cache: "no-store", ...init, headers: { "content-type": "application/json", ...init?.headers } });
-  } catch {
-    return { ok: false, status: 0, message: "Network error. Check your connection and try again." };
-  }
-  const text = await response.text().catch(() => "");
-  if (!response.ok) {
-    const parsed = safeJsonParse(text, ApiErrorSchema);
-    return { ok: false, status: response.status, message: parsed.ok ? parsed.data.error.message : `Request failed (${response.status})` };
-  }
-  const parsed = safeJsonParse(text, schema);
-  return parsed.ok ? { ok: true, data: parsed.data } : { ok: false, status: response.status, message: "Unexpected response from server." };
-}
 
 const MIME_BY_EXTENSION: Record<string, MimeType> = { pdf: "application/pdf", epub: "application/epub+zip" };
 const INGEST_RETRIES = 4;
@@ -85,7 +66,15 @@ async function uploadBook(file: File, onStep: (text: string) => void): Promise<s
   return "The indexing service did not wake up in time. Your file is uploaded; please try again in a minute.";
 }
 
-export default function LibraryPanel({ refreshKey, onChanged }: { readonly refreshKey: number; readonly onChanged: () => void }) {
+export default function LibraryPanel({
+  refreshKey,
+  onChanged,
+  onOpen,
+}: {
+  readonly refreshKey: number;
+  readonly onChanged: () => void;
+  readonly onOpen: (book: Book) => void;
+}) {
   const [books, setBooks] = useState<readonly Book[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [step, setStep] = useState<string | null>(null);
@@ -179,6 +168,15 @@ export default function LibraryPanel({ refreshKey, onChanged }: { readonly refre
                 </p>
                 {book.status === "failed" && book.ingestError !== null ? (
                   <p className="mt-1 text-xs text-rose-700">{book.ingestError}</p>
+                ) : null}
+                {book.status === "indexed" ? (
+                  <button
+                    type="button"
+                    onClick={() => onOpen(book)}
+                    className="mt-3 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700"
+                  >
+                    Study this book →
+                  </button>
                 ) : null}
               </li>
             ))}
