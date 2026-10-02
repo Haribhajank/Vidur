@@ -88,7 +88,12 @@ def encode_on_gpu(windows: list[str]) -> np.ndarray:
 
 def embed_chunks(texts: list[str]) -> np.ndarray:
     windows, owners = split_windows(tokenizer, texts)
-    return pool_windows(encode_on_gpu(windows), owners, len(texts))
+    if ON_ZERO_GPU:
+        try:
+            return pool_windows(encode_on_gpu(windows), owners, len(texts))
+        except Exception:  # noqa: BLE001 - ZeroGPU allocation/worker failures must not fail the book
+            log.exception("ZeroGPU encode failed for %s windows; falling back to CPU", len(windows))
+    return pool_windows(_encode(cpu_model, windows), owners, len(texts))
 
 
 def ingest(body: str, timestamp: str, signature: str) -> Iterator[dict[str, Any]]:
